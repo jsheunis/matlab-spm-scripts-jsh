@@ -4,7 +4,7 @@
 % Prerequisites:
 % - Matlab recent version (developed using 2016b on Mac OS Sierra)
 % - SPM12 neuroimage processing toolbox: https://www.fil.ion.ucl.ac.uk/spm/software/spm12/
-% - Task data: https://openneuro.org/datasets/ds000157/versions/00001
+% - Task fMRI data: https://openneuro.org/datasets/ds000157/versions/00001
 % - A basic understanding of the processing steps involved in analysing
 % task fMRI
 % 
@@ -15,7 +15,7 @@
 % - spm_setupTaskContrast_jsh
 % - spm_runResults_jsh
 % 
-% See [LINK TO BE ADDED] for full tutorial details
+% See online tutorial for full details: https://www.fmrwhy.com/2018/06/28/spm12-matlab-scripting-tutorial-1/
 %__________________________________________________________________________
 % Copyright (C) Stephan Heunis 2018
 

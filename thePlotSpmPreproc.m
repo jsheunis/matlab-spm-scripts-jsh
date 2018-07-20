@@ -1,9 +1,11 @@
 function output = thePlotSpmPreproc(functional4D_fn, structural_fn, fwhm, spm_dir)
 % Function to complete preprocessing of structural and functional data from
-% a single subject for use in thePlotSpm.m 
+% a single subject for use in thePlotSpm.m
+% 
 % Steps include coregistering structural image to first functional image,
 % segmenting the coregistered structural image into tissue types, and
 % reslicing the segments to the functional resolution image grid. 
+% 
 % Makes use of spm12 batch routines. 
 % If spm12 batch parameters are not explicitly set, defaults are assumed.
 %

@@ -56,8 +56,6 @@
 % Copyright (C) 2018 - Stephan Heunis
 
 
-% thePlotSpm
-
 % User defined variables:
 % -------------------------------------------------------------------------
 data_dir = ''; % e.g. '/users/me/matlab/data/subj1'
@@ -126,7 +124,7 @@ MP_mm(:,4:6) = MP_mm(:,4:6)*50; % 50mm = assumed brain radius; from article
 MP_diff = [zeros(1, 6); diff(MP_mm)];
 FD = sum(abs(MP_diff),2);
 
-% Calculate BOLD percentage signal change:
+% Calculate BOLD percentage signal change and create plot:
 % - First create binary masks for GM, WM and CSF,
 % - Then combine them to get a brain mask for which calculations are run
 % - Then compute PSC for unprocessed or realigned data (user selection)
