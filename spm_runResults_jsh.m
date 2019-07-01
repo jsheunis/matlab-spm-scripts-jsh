@@ -1,6 +1,7 @@
 function spm_runResults_jsh(stats_dir)
 
-spm('defaults','FMRI');
+spm('defaults','fmri');
+spm_jobman('initcfg');
 % SETUP BATCH JOB STRUCTURE
 results = struct;
 % spmmat
@@ -18,4 +19,4 @@ results.matlabbatch{1}.spm.stats.results.units = 1;
 % export
 results.matlabbatch{1}.spm.stats.results.export{1}.ps = 1;
 % RUN BATCH JOB
-cfg_util('run',results.matlabbatch);
+spm_jobman('run',results.matlabbatch);

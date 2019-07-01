@@ -7,7 +7,9 @@ function output = detrend4D(functional4D_fn)
 % F_4D_detrended        - 
 %__________________________________________________________________________
 
-F_4D = spm_read_vols(spm_vol(functional4D_fn));
+F_4D_spm = spm_vol(functional4D_fn);
+F_4D = double(F_4D_spm(1).private.dat);
+
 [Ni, Nj, Nk, Nt] = size(F_4D);
 F_2D = reshape(F_4D, Ni*Nj*Nk, Nt);
 X_design = [ (1:Nt)' ((1:Nt).^2/(Nt^2))' ((1:Nt).^3/(Nt^3))'];
