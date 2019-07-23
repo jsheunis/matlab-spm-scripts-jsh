@@ -1,11 +1,11 @@
 % thePlotSpm
-% 
+%
 % This is a Matlab script that uses custom code and spm12 routines to plot
 % a version of THE PLOT from Jonathan Power. See:
 % - https://www.jonathanpower.net/2017-ni-the-plot.html
 % - https://www.ncbi.nlm.nih.gov/pubmed/27510328
 % (code has been partly adopted from Power's script)
-% 
+%
 % THE PLOT is a useful visual quality checking tool for fMRI timeseries
 % data. It is a 2D plot of voxel intensities over time, with voxels ordered
 % in bins (GM, WM, CSF) to indicate some directionality in the data. Motion
@@ -13,7 +13,7 @@
 % tool, especially if viewed next to other quality traces, like FD, DVARS
 % or physiological recordings.
 
-% My script does the following: 
+% My script does the following:
 %   - Run preprocessing on input data:
 %       - Checks if T1w segments already exist.
 %       - If not, realigns all images in time series to first functional
@@ -26,22 +26,22 @@
 %   - Creates brain mask (GM+WM+CSF)
 %   - Calculates BOLD percentage signal changes for masked brain voxels
 %   - Creates figure with FD and THEPLOT (with blue and red lines
-%     separating GM (top), WM (middle), and CSF(bottom)) 
-% 
+%     separating GM (top), WM (middle), and CSF(bottom))
+%
 % INPUTS:
 % structural_fn     - filename of T1-weighted structural scan, a 4D nifti
 %                     file is expected (e.g. 'mprage.nii')
 % funcional4D_fn    - filename of main functional scan, a 4D nifti file is
 %                     expected (e.g. 'rest.nii')
-% 
+%
 % DEPENDENCIES:
 % thePlotSpmPreproc.m     - preprocesses data (functional realignment, coregistration of
 %                         T1w to first functional image, segmentation into
-%                         tissue types, reslicing to functional grid) 
+%                         tissue types, reslicing to functional grid)
 % createBinarySegments.m  - constructs 3D binary images for GM, WM and CSF based
 %                         on the relative value of GM/WM/CSF tissue probability
 %                         maps per voxel.
-% 
+%
 % NOTES/ASSUMPTIONS:
 % - This script makes use of spm12 batch scripting
 % - This script assumes that image files are in the Nifti file format
@@ -49,24 +49,52 @@
 % tested on other platforms (it wasn't even tested much on my Mac)
 % - This is a simplified, Matlab-SPM-only version of Power's THEPLOT and
 % excludes things like erosion of masks and segmentation into more bins
-% (done in freesurfer). 
+% (done in freesurfer).
 % - I might have made some mistakes in the code, or it could be improved in
 % many ways. Please contribute!
+% 
+% UPDATES:
+% - 23 July 2019: added voxel ordering options according to RO and GSO
+% methods in: https://www.biorxiv.org/content/10.1101/662726v1.full
 %__________________________________________________________________________
 % Copyright (C) 2018 - Stephan Heunis
 
 
-% User defined variables:
-% -------------------------------------------------------------------------
-data_dir = ''; % e.g. '/users/me/matlab/data/subj1'
-functional4D_fn = [data_dir filesep '']; % e.g. [data_dir filesep 'rest.nii']
-structural_fn = [data_dir filesep '']; % e.g. [data_dir filesep 'mprage.nii']
-spm_dir = ''; % e.g. '/users/me/matlab/spm12'
+% % User defined variables:
+% % -------------------------------------------------------------------------
+% data_dir = ''; % e.g. '/users/me/matlab/data/subj1'
+% functional4D_fn = [data_dir filesep '']; % e.g. [data_dir filesep 'rest.nii']
+% structural_fn = [data_dir filesep '']; % e.g. [data_dir filesep 'mprage.nii']
+% spm_dir = ''; % e.g. '/users/me/matlab/spm12'
+% fwhm = 6; % for preprocessing smoothing steps
+% use_processed = 0;  % use realigned data for the plot? yes = 1
+% intensity_scale = [-6 6]; % scaling for plot image intensity, see what works
+% ordering = 0; % ordering of voxels in ThePlotSPM;
+% % 0 = Random order via standard Matlab indexing (RO)
+% % 0 = Grey matter signal ordering (GSO) (according to the Pearsons correlation between voxel timeseries and global signal )
+% % 0 = Cluster-similarity ordering (CO) - NOT IMPLEMENTED YET
+% roi = ''; % figure generated for voxels in supplied ROI - NOT IMPLEMENTED YE
+% % -------------------------------------------------------------------------
+
+data_dir = '/Users/jheunis/Desktop/All/Code and data tests/theplottest2'; % e.g. '/users/me/matlab/data/subj1'
+functional4D_fn = [data_dir filesep 'rest.nii']; % e.g. [data_dir filesep 'rest.nii']
+structural_fn = [data_dir filesep 'mprage.nii']; % e.g. [data_dir filesep 'mprage.nii']
+spm_dir = '/Users/jheunis/Documents/MATLAB/spm12'; % e.g. '/users/me/matlab/spm12'
 fwhm = 6; % for preprocessing smoothing steps
 use_processed = 0;  % use realigned data for the plot? yes = 1
 intensity_scale = [-6 6]; % scaling for plot image intensity, see what works
-% -------------------------------------------------------------------------
-
+ordering = 1; % ordering of voxels in ThePlotSPM;
+% 0 = Random order via standard Matlab indexing (RO)
+% 0 = Grey matter signal ordering (GSO) (according to the Pearsons correlation between voxel timeseries and global signal )
+% 0 = Cluster-similarity ordering (CO) - NOT IMPLEMENTED YET
+% roi = ''; % figure generated for voxels in supplied ROI - NOT IMPLEMENTED YET
+if ordering == 0
+    order_text = '(RO)';
+elseif ordering == 1
+    order_text = '(GSO)';
+else
+end
+        
 % Get image information
 func_spm = spm_vol(functional4D_fn);
 tsize = size(func_spm);
@@ -78,7 +106,7 @@ Nk= func_spm(1).dim(3);
 % Preprocess structural and functional data. First check if a resliced grey
 % matter image is present in the specified data directory. If true, assume
 % that all preprocessing has been completed by thePlotSpmPreproc, declare
-% appropriate variables and 
+% appropriate variables and
 [d, f, e] = fileparts(structural_fn);
 if exist([d filesep 'rc1' f e], 'file')
     disp('Preproc done!')
@@ -111,15 +139,15 @@ end
 
 
 % Calculate Framewise displacement:
-% - First demean and detrend the movement parameters and 
+% - First demean and detrend the movement parameters and
 % - then calculate FD.
 MP2 = preproc_data.MP - repmat(mean(preproc_data.MP, 1), Nt,1);
 X = (1:Nt)';
 X2 = X - mean(X);
 X3 = [ones(Nt,1) X2];
-b = X3\MP2;
+b = pinv(X3)*MP2;
 MP_corrected = MP2 - X3(:, 2)*b(2,:);
-MP_mm = MP_corrected; 
+MP_mm = MP_corrected;
 MP_mm(:,4:6) = MP_mm(:,4:6)*50; % 50mm = assumed brain radius; from article
 MP_diff = [zeros(1, 6); diff(MP_mm)];
 FD = sum(abs(MP_diff),2);
@@ -163,29 +191,50 @@ F_2D_psc = reshape(F_psc_img, Ni*Nj*Nk, Nt);
 F_2D_psc(I_mask, :) = F_masked_psc;
 F_psc_img = reshape(F_2D_psc, Ni, Nj, Nk, Nt);
 
+% Voxel ordering
+switch(ordering)
+    case 0
+        GM_img = F_2D_psc(I_GM, :);
+        WM_img = F_2D_psc(I_WM, :);
+        CSF_img = F_2D_psc(I_CSF, :);
+        all_img = [GM_img; WM_img; CSF_img];
+        line1_pos = numel(I_GM);
+        line2_pos = numel(I_GM) + numel(I_WM);
+    case 1
+        GM_signals = F_2D_psc(I_GM, :);
+        GM_time_series = mean(GM_signals, 1);
+        Rcorr = corr(F_masked_psc', GM_time_series');
+        [R_sorted, I_sorted] = sort(Rcorr,'descend');
+        all_img = F_masked_psc(I_sorted, :);
+    otherwise
+        GM_img = F_2D_psc(I_GM, :);
+        WM_img = F_2D_psc(I_WM, :);
+        CSF_img = F_2D_psc(I_CSF, :);
+        all_img = [GM_img; WM_img; CSF_img];
+        line1_pos = numel(I_GM);
+        line2_pos = numel(I_GM) + numel(I_WM);
+end
+
 % Figure
-GM_img = F_2D_psc(I_GM, :);
-WM_img = F_2D_psc(I_WM, :);
-CSF_img = F_2D_psc(I_CSF, :);
-all_img = [GM_img; WM_img; CSF_img];
-line1_pos = numel(I_GM);
-line2_pos = numel(I_GM) + numel(I_WM);
-figure; 
-fontsizeL = 17;
-fontsizeM = 15;
-ax1 = subplot(5,1,[2:5]);
+figure;
+fontsizeL = 15;
+fontsizeM = 13;
+ax1 = subplot(5,1,[1:4]);
 imagesc(ax1, all_img); colormap(gray); caxis(intensity_scale);
-title(ax1, 'thePlotSpm','fontsize',fontsizeL)
+title(ax1, ['The Plot SPM ' order_text],'fontsize',fontsizeL)
 ylabel(ax1, 'Voxels','fontsize',fontsizeM)
-xlabel(ax1, 'fMRI volumes','fontsize',fontsizeM)
-hold on; line([1 Nt],[line1_pos line1_pos],  'Color', 'b', 'LineWidth', 2 )
-line([1 Nt],[line2_pos line2_pos],  'Color', 'r', 'LineWidth', 2 )
-hold off;
-ax2 = subplot(5,1,1);
+set(ax1,'Xticklabel',[]);
+if ordering == 0
+    hold on;
+    line([1 Nt],[line1_pos line1_pos],  'Color', 'b', 'LineWidth', 2 )
+    line([1 Nt],[line2_pos line2_pos],  'Color', 'r', 'LineWidth', 2 )
+    hold off;
+end
+ax2 = subplot(5,1,5);
 plot(ax2, FD, 'LineWidth', 2); grid;
-set(ax2,'Xticklabel',[]);
 title(ax2, 'FD','fontsize',fontsizeL)
 ylabel(ax2, 'mm','fontsize',fontsizeM)
+xlabel(ax2, 'fMRI volumes','fontsize',fontsizeM)
 
 
 

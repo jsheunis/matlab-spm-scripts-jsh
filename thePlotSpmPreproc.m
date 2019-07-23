@@ -20,8 +20,12 @@ function output = thePlotSpmPreproc(functional4D_fn, structural_fn, fwhm, spm_di
 % Copyright (C) Stephan Heunis
 
 % Load data
-f4D_img = spm_read_vols(spm_vol(functional4D_fn));
-[Ni, Nj, Nk, Nt] = size(f4D_img);
+func_spm = spm_vol(functional4D_fn);
+tsize = size(func_spm);
+Nt = tsize(1);
+Ni= func_spm(1).dim(1);
+Nj= func_spm(1).dim(2);
+Nk= func_spm(1).dim(3);
 % Declare output structure
 output = struct;
 
