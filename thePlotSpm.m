@@ -52,11 +52,22 @@
 % (done in freesurfer). 
 % - I might have made some mistakes in the code, or it could be improved in
 % many ways. Please contribute!
+%
+% 2018-08-17 Remi Gau 
+% This seems to work on windows 10 with matlab 2017a.
+% While looking around I realized that Cyril Pernet has a function 
+% (spmup_timeseriesplot) to plot this (and do quite a few other things as 
+% well) in his spmup toolbox: % https://github.com/CPernet/spmup
+% But I like your script a lot as well as it is more stand-alone and
+% therefore more pedagogical.
+% 
 %__________________________________________________________________________
 % Copyright (C) 2018 - Stephan Heunis
 
+clear
+clc
 
-% User defined variables:
+%% User defined variables:
 % -------------------------------------------------------------------------
 data_dir = ''; % e.g. '/users/me/matlab/data/subj1'
 functional4D_fn = [data_dir filesep '']; % e.g. [data_dir filesep 'rest.nii']
@@ -65,9 +76,27 @@ spm_dir = ''; % e.g. '/users/me/matlab/spm12'
 fwhm = 6; % for preprocessing smoothing steps
 use_processed = 0;  % use realigned data for the plot? yes = 1
 intensity_scale = [-6 6]; % scaling for plot image intensity, see what works
+davg_def = 50; %Average distance to the surface of the brain ; 50mm = assumed brain radius; from article
 % -------------------------------------------------------------------------
 
-% Get image information
+
+% RG
+% -------------------------------------------------------------------------
+fwhm = 6;
+[spm_dir, ~, ~] = fileparts(which('spm'));
+data_dir = 'D:';
+subj = 'sub-01';
+% structural image
+structural_fn = spm_select('FPList', fullfile(data_dir , subj , 'anat'), ['^' subj '_T1w.*nii$']);
+% 4D BOLD time series
+functional4D_fn = spm_select('FPList', fullfile(data_dir , subj , 'func'), ['^' subj '_task-.*_bold*.nii$']);
+use_processed = 0;  % use realigned data for the plot? yes = 1
+intensity_scale = [-6 6]; % scaling for plot image intensity, see what works
+davg_def = 65;
+% -------------------------------------------------------------------------
+
+
+%% Get image information
 func_spm = spm_vol(functional4D_fn);
 tsize = size(func_spm);
 Nt = tsize(1);
@@ -75,44 +104,72 @@ Ni= func_spm(1).dim(1);
 Nj= func_spm(1).dim(2);
 Nk= func_spm(1).dim(3);
 
+
+%% Data check
 % Preprocess structural and functional data. First check if a resliced grey
 % matter image is present in the specified data directory. If true, assume
 % that all preprocessing has been completed by thePlotSpmPreproc, declare
 % appropriate variables and 
-[d, f, e] = fileparts(structural_fn);
-if exist([d filesep 'rc1' f e], 'file')
+[dir, file, ext] = fileparts(structural_fn);
+if exist([dir filesep 'rc1' file ext], 'file')
     disp('Preproc done!')
     preproc_data = struct;
-    preproc_data.forward_transformation = [d filesep 'y_' f e];
-    preproc_data.inverse_transformation = [d filesep 'iy_' f e];
-    preproc_data.gm_fn = [d filesep 'c1' f e];
-    preproc_data.wm_fn = [d filesep 'c2' f e];
-    preproc_data.csf_fn = [d filesep 'c3' f e];
-    preproc_data.bone_fn = [d filesep 'c4' f e];
-    preproc_data.soft_fn = [d filesep 'c5' f e];
-    preproc_data.air_fn = [d filesep 'c6' f e];
-    preproc_data.rstructural_fn = [d filesep 'r' f e];
-    preproc_data.rgm_fn = [d filesep 'rc1' f e];
-    preproc_data.rwm_fn = [d filesep 'rc2' f e];
-    preproc_data.rcsf_fn = [d filesep 'rc3' f e];
-    preproc_data.rbone_fn = [d filesep 'rc4' f e];
-    preproc_data.rsoft_fn = [d filesep 'rc5' f e];
-    preproc_data.rair_fn = [d filesep 'rc6' f e];
+    preproc_data.rstructural_fn = fullfile(dir , ['r' file ext]);
+    preproc_data.rgm_fn = fullfile(dir , ['rc1' file ext]);
+    preproc_data.rwm_fn = fullfile(dir , ['rc2' file ext]);
+    preproc_data.rcsf_fn = fullfile(dir , ['rc3' file ext]);
     
-    [d, f, e] = fileparts(functional4D_fn);
-    preproc_data.rfunctional_fn = [d filesep 'r' f e];
-    preproc_data.srfunctional_fn = [d filesep 'sr' f e];
-    preproc_data.sfunctional_fn = [d filesep 's' f e];
-    preproc_data.mp_fn = [d filesep 'rp_' f '.txt'];
+    [dir, file, ext] = fileparts(functional4D_fn);
+    preproc_data.rfunctional_fn = fullfile(dir , ['r' file ext]);
+    preproc_data.srfunctional_fn = fullfile(dir , ['sr' file ext]);
+    preproc_data.sfunctional_fn = fullfile(dir , ['s' file ext]);
+    preproc_data.mp_fn = fullfile(dir , ['rp_' file '.txt']);
     preproc_data.MP = load(preproc_data.mp_fn);
 else
     preproc_data = thePlotSpmPreproc(functional4D_fn, structural_fn, fwhm, spm_dir);
 end
 
+% Additional check to make sure that the functional images and the resliced
+% TPMs have same dimensions
+files = {};
+files{1,1} = preproc_data.rgm_fn;
+files{2,1} = [preproc_data.rfunctional_fn ',1'];   
+files = char(files);
+spm_check_orientations(spm_vol(files));
 
-% Calculate Framewise displacement:
+
+%% Try to compute the average surface to the brain
+% from motion finger print functions and script (mw_mfp.m) from Marko Wilke
+% https://www.medizin.uni-tuebingen.de/kinder/en/research/neuroimaging/software/
+% see http://www.dx.doi.org/10.1016/j.neuroimage.2011.10.043
+% and http://www.dx.doi.org/10.1371/journal.pone.0106498
+[dir, file, ext] = fileparts(structural_fn);
+try
+if isempty(spm_select('FPList',dir,'^rc1.*\.surf\.gii$'))
+    % create a surface of the brain using the TPM  if we don't have one
+    files = spm_select('FPList',dir,'^rc[12].*\.nii$');
+    spm_surf(files,2);
+    clear files
+end
+% compute the average surface to the brain
+FV = gifti(spm_select('FPList',dir,'^rc1.*\.surf\.gii$'));
+center = FV.vertices(FV.faces(:,:),:);
+center = reshape(center, [size(FV.faces,1) 3 3]);
+center = squeeze(mean(center,2));
+ori_dist = sqrt(sum((center.*-1).^2,2))';
+davg = mean(ori_dist);
+clear ori_dist center FV
+
+catch
+    davg = davg_def;
+end
+fprintf(' Average distance to the cortex surface: %0.2f ', davg)
+
+
+%% Calculate Framewise displacement:
 % - First demean and detrend the movement parameters and 
 % - then calculate FD.
+% See also spmup_FD from https://github.com/CPernet/spmup
 MP2 = preproc_data.MP - repmat(mean(preproc_data.MP, 1), Nt,1);
 X = (1:Nt)';
 X2 = X - mean(X);
@@ -120,11 +177,12 @@ X3 = [ones(Nt,1) X2];
 b = X3\MP2;
 MP_corrected = MP2 - X3(:, 2)*b(2,:);
 MP_mm = MP_corrected; 
-MP_mm(:,4:6) = MP_mm(:,4:6)*50; % 50mm = assumed brain radius; from article
+MP_mm(:,4:6) = MP_mm(:,4:6)*davg; 
 MP_diff = [zeros(1, 6); diff(MP_mm)];
 FD = sum(abs(MP_diff),2);
 
-% Calculate BOLD percentage signal change and create plot:
+
+%% Calculate BOLD percentage signal change (PSC)
 % - First create binary masks for GM, WM and CSF,
 % - Then combine them to get a brain mask for which calculations are run
 % - Then compute PSC for unprocessed or realigned data (user selection)
@@ -137,6 +195,8 @@ mask_reshaped = GM_img_bin | WM_img_bin | CSF_img_bin;
 I_mask = find(mask_reshaped);
 Nmaskvox = numel(I_mask);
 
+
+%% Load and detrend data
 % Use realigned or unprocessed data for plot, user-selected
 if use_processed == 1
     F_img = spm_read_vols(spm_vol(preproc_data.srfunctional_fn));
@@ -163,26 +223,38 @@ F_2D_psc = reshape(F_psc_img, Ni*Nj*Nk, Nt);
 F_2D_psc(I_mask, :) = F_masked_psc;
 F_psc_img = reshape(F_2D_psc, Ni, Nj, Nk, Nt);
 
-% Figure
+
+%% Figure
+% Create image to plot by concatenation
 GM_img = F_2D_psc(I_GM, :);
 WM_img = F_2D_psc(I_WM, :);
 CSF_img = F_2D_psc(I_CSF, :);
-all_img = [GM_img; WM_img; CSF_img];
+all_img = [GM_img; WM_img; CSF_img]; 
+% Identif limits between the different tissue compartments
 line1_pos = numel(I_GM);
 line2_pos = numel(I_GM) + numel(I_WM);
-figure; 
+
+figure
 fontsizeL = 17;
 fontsizeM = 15;
+
+% plot functional data
 ax1 = subplot(5,1,[2:5]);
-imagesc(ax1, all_img); colormap(gray); caxis(intensity_scale);
+imagesc(ax1, all_img); 
+colormap(gray); 
+caxis(intensity_scale);
 title(ax1, 'thePlotSpm','fontsize',fontsizeL)
 ylabel(ax1, 'Voxels','fontsize',fontsizeM)
 xlabel(ax1, 'fMRI volumes','fontsize',fontsizeM)
-hold on; line([1 Nt],[line1_pos line1_pos],  'Color', 'b', 'LineWidth', 2 )
+hold on; 
+line([1 Nt],[line1_pos line1_pos],  'Color', 'b', 'LineWidth', 2 )
 line([1 Nt],[line2_pos line2_pos],  'Color', 'r', 'LineWidth', 2 )
 hold off;
+
+% plot Framewise displacement
 ax2 = subplot(5,1,1);
 plot(ax2, FD, 'LineWidth', 2); grid;
+axis tight
 set(ax2,'Xticklabel',[]);
 title(ax2, 'FD','fontsize',fontsizeL)
 ylabel(ax2, 'mm','fontsize',fontsizeM)
