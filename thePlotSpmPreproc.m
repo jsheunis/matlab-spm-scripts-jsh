@@ -52,7 +52,6 @@ Nt = numel(spm_vol(functional4D_fn));
 % Declare output structure
 output = struct;
 
-
 %% STEP 1 -- Realign (estimate and reslice) all functionals to first functional
 % Only if this has not been done before
 [dir, file, ext] = fileparts(functional4D_fn);
@@ -95,6 +94,8 @@ disp('Step 1 - Done!');
 
 %% STEP 2 -- Coregister structural image to first dynamic image (estimate only)
 disp('Step 2...');
+spm('defaults','fmri');
+spm_jobman('initcfg');
 coreg_estimate = struct;
 % Ref
 coreg_estimate.matlabbatch{1}.spm.spatial.coreg.estimate.ref = {[functional4D_fn ',1']};
@@ -106,12 +107,13 @@ coreg_estimate.matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.sep = [4 2];
 coreg_estimate.matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.tol = [0.02 0.02 0.02 0.001 0.001 0.001 0.01 0.01 0.01 0.001 0.001 0.001];
 coreg_estimate.matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.fwhm = [7 7];
 % Run
-cfg_util('run',coreg_estimate.matlabbatch);
+spm_jobman('run',coreg_estimate.matlabbatch);
 disp('Step 2 - Done!');
 
 
 %% STEP 3 -- Segmentation of coregistered structural image into GM, WM, CSF, etc
 % (with implicit warping to MNI space, saving forward and inverse transformations)
+
 % Only if this has not been done before
 [dir, file, ext] = fileparts(structural_fn);
 if ~exist(spm_select('FPList', dir, ['^c1' file ext]), 'file')
@@ -247,4 +249,3 @@ end
 % Save filenames
 output.sfunctional_fn = fullfile(dir , ['s' file ext]);
 disp('Step 6 - Done!');
-

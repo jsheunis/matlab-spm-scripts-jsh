@@ -19,7 +19,6 @@ function output = spm_standardPreproc_jsh(functional4D_fn, structural_fn, fwhm, 
 %__________________________________________________________________________
 % Copyright (C) Stephan Heunis 2018
 
-spm_defaults('fmri')
 % Load data
 f4D_spm = spm_vol(functional4D_fn);
 spm_size = size(f4D_spm);
@@ -29,6 +28,8 @@ output = struct;
 
 % STEP 1 -- Realign (estimate and reslice) all functionals to first functional
 disp('Step 1 -- Realign all volumes to first functional volume');
+spm('defaults','fmri');
+spm_jobman('initcfg');
 realign_estimate_reslice = struct;
 % Data
 fnms={};
@@ -51,7 +52,7 @@ realign_estimate_reslice.matlabbatch{1}.spm.spatial.realign.estwrite.roptions.wr
 realign_estimate_reslice.matlabbatch{1}.spm.spatial.realign.estwrite.roptions.mask = 1;
 realign_estimate_reslice.matlabbatch{1}.spm.spatial.realign.estwrite.roptions.prefix = 'r';
 % Run
-cfg_util('run',realign_estimate_reslice.matlabbatch);
+spm_jobman('run',realign_estimate_reslice.matlabbatch);
 [d, f, e] = fileparts(functional4D_fn);
 output.rfunctional_fn = [d filesep 'r' f e];
 output.mp_fn = [d filesep 'rp_' f '.txt'];
@@ -60,6 +61,8 @@ disp('Step 1 - Done!');
 
 % STEP 2 -- Coregister structural image to first dynamic image (estimate only)
 disp('Step 2 -- Coregister structural image to first dynamic image');
+spm('defaults','fmri');
+spm_jobman('initcfg');
 coreg_estimate = struct;
 % Ref
 coreg_estimate.matlabbatch{1}.spm.spatial.coreg.estimate.ref = {[functional4D_fn ',1']};
@@ -71,12 +74,14 @@ coreg_estimate.matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.sep = [4 2];
 coreg_estimate.matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.tol = [0.02 0.02 0.02 0.001 0.001 0.001 0.01 0.01 0.01 0.001 0.001 0.001];
 coreg_estimate.matlabbatch{1}.spm.spatial.coreg.estimate.eoptions.fwhm = [7 7];
 % Run
-cfg_util('run',coreg_estimate.matlabbatch);
+spm_jobman('run',coreg_estimate.matlabbatch);
 disp('Step 2 - Done!');
 
 % STEP 3 -- Segmentation of coregistered structural image into GM, WM, CSF, etc
 % (with implicit warping to MNI space, saving forward and inverse transformations)
 disp('Step 3 -- Segmentation');
+spm('defaults','fmri');
+spm_jobman('initcfg');
 segmentation = struct;
 % Channel
 segmentation.matlabbatch{1}.spm.spatial.preproc.channel.biasreg = 0.001;
@@ -101,7 +106,7 @@ segmentation.matlabbatch{1}.spm.spatial.preproc.warp.fwhm = 0;
 segmentation.matlabbatch{1}.spm.spatial.preproc.warp.samp = 3;
 segmentation.matlabbatch{1}.spm.spatial.preproc.warp.write=[1 1];
 % Run
-cfg_util('run',segmentation.matlabbatch);
+spm_jobman('run',segmentation.matlabbatch);
 % Save filenames
 [d, f, e] = fileparts(structural_fn);
 output.forward_transformation = [d filesep 'y_' f e];
@@ -116,6 +121,8 @@ disp('Step 3 - done!');
 
 % STEP 4 -- Reslice all to functional-resolution image grid
 disp('Step 4 -- Reslice all to functional-resolution image grid');
+spm('defaults','fmri');
+spm_jobman('initcfg');
 reslice = struct;
 % Ref
 reslice.matlabbatch{1}.spm.spatial.coreg.write.ref = {[functional4D_fn ',1']};
@@ -132,7 +139,7 @@ reslice.matlabbatch{1}.spm.spatial.coreg.write.roptions.wrap = [0 0 0];
 reslice.matlabbatch{1}.spm.spatial.coreg.write.roptions.mask = 0;
 reslice.matlabbatch{1}.spm.spatial.coreg.write.roptions.prefix = 'r';
 % Run
-cfg_util('run',reslice.matlabbatch);
+spm_jobman('run',reslice.matlabbatch);
 % Save filenames
 [d, f, e] = fileparts(structural_fn);
 output.rstructural_fn = [d filesep 'r' f e];
@@ -146,6 +153,8 @@ disp('Step 4 - done!');
 
 % STEP 5 -- Gaussian kernel smoothing of realigned data
 disp('STEP 5 -- Gaussian kernel smoothing of realigned data');
+spm('defaults','fmri');
+spm_jobman('initcfg');
 smooth = struct;
 % Data
 fns={};
@@ -159,7 +168,7 @@ smooth.matlabbatch{1}.spm.spatial.smooth.dtype = 0;
 smooth.matlabbatch{1}.spm.spatial.smooth.im = 0;
 smooth.matlabbatch{1}.spm.spatial.smooth.prefix = 's';
 % Run
-cfg_util('run',smooth.matlabbatch);
+spm_jobman('run',smooth.matlabbatch);
 [d, f, e] = fileparts(output.rfunctional_fn);
 output.srfunctional_fn = [d filesep 's' f e];
 disp('Step 5 - done!');

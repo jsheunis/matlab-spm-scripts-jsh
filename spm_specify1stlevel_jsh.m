@@ -1,5 +1,7 @@
 function spm_specify1stlevel_jsh(stats_dir, func4D_fn, multi_reg_fn, params)
 
+spm('defaults','fmri');
+spm_jobman('initcfg');
 design_stats = struct;
 func4D_spm = spm_vol(func4D_fn);
 func4D_size = size(func4D_spm);
@@ -44,4 +46,4 @@ design_stats.matlabbatch{1}.spm.stats.fmri_spec.mask = {''};
 design_stats.matlabbatch{1}.spm.stats.fmri_spec.cvi = 'AR(1)';
 
 % RUN BATCH JOB
-cfg_util('run',design_stats.matlabbatch);
+spm_jobman('run',design_stats.matlabbatch);
