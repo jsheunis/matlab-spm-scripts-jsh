@@ -71,8 +71,8 @@
 % intensity_scale = [-6 6]; % scaling for plot image intensity, see what works
 % ordering = 0; % ordering of voxels in ThePlotSPM;
 % % 0 = Random order via standard Matlab indexing (RO)
-% % 0 = Grey matter signal ordering (GSO) (according to the Pearsons correlation between voxel timeseries and global signal )
-% % 0 = Cluster-similarity ordering (CO) - NOT IMPLEMENTED YET
+% % 1 = Grey matter signal ordering (GSO) (according to the Pearsons correlation between voxel timeseries and global signal )
+% % 2 = Cluster-similarity ordering (CO) - NOT IMPLEMENTED YET
 % roi = ''; % figure generated for voxels in supplied ROI - NOT IMPLEMENTED YE
 % % -------------------------------------------------------------------------
 
@@ -83,15 +83,17 @@ spm_dir = '/Users/jheunis/Documents/MATLAB/spm12'; % e.g. '/users/me/matlab/spm1
 fwhm = 6; % for preprocessing smoothing steps
 use_processed = 0;  % use realigned data for the plot? yes = 1
 intensity_scale = [-6 6]; % scaling for plot image intensity, see what works
-ordering = 1; % ordering of voxels in ThePlotSPM;
+ordering = 2; % ordering of voxels in ThePlotSPM;
 % 0 = Random order via standard Matlab indexing (RO)
-% 0 = Grey matter signal ordering (GSO) (according to the Pearsons correlation between voxel timeseries and global signal )
-% 0 = Cluster-similarity ordering (CO) - NOT IMPLEMENTED YET
+% 1 = Grey matter signal ordering (GSO) (according to the Pearsons correlation between voxel timeseries and global signal )
+% 2 = Cluster-similarity ordering (CO) - NOT IMPLEMENTED YET
 % roi = ''; % figure generated for voxels in supplied ROI - NOT IMPLEMENTED YET
 if ordering == 0
     order_text = '(RO)';
 elseif ordering == 1
     order_text = '(GSO)';
+elseif ordering == 2
+    order_text = '(CO)';
 else
 end
         
@@ -206,6 +208,21 @@ switch(ordering)
         Rcorr = corr(F_masked_psc', GM_time_series');
         [R_sorted, I_sorted] = sort(Rcorr,'descend');
         all_img = F_masked_psc(I_sorted, :);
+    case 2
+        % From: https://gist.github.com/benfulcher/f243bdc4ab80a7351f083f35bdd4db63
+        dataMatrix = F_masked_psc';
+        distanceMetric = 'Euclidean';
+        linkageMethod = 'average';
+%         dataMatrixNorm = zscore(dataMatrix); % normalize columns
+        dataMatrixNorm = dataMatrix;
+        R = pdist(dataMatrixNorm,distanceMetric); % Pairwise distances
+        links = linkage(R,linkageMethod); % Do hierarchical linkage        
+        f = figure('color','w');
+        set(gcf,'Visible','off'); % suppress figure output
+        [~,~,ord] = dendrogram(links,0);
+        close(f); % close the invisible figure used for the dendrogram
+        dataMatrixClustered = dataMatrixNorm(ord,:); % Reorder rows
+        all_img = dataMatrixClustered';
     otherwise
         GM_img = F_2D_psc(I_GM, :);
         WM_img = F_2D_psc(I_WM, :);
